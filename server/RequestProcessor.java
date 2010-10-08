@@ -1,149 +1,98 @@
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.Socket;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-import com.trend.Packet;
-
-
 public class RequestProcessor implements Runnable {
-    private static List<Socket> pool = new LinkedList<Socket>();
-    private File localFile = null;
-    private String filename ="";
-    private long filesize = 0;
-    private BufferedOutputStream fout = null;
-    private MessageDigest mdsum;
-    
-    public static void processRequest(Socket request) {
+    private static List<SelectionKey> pool = new LinkedList<SelectionKey>();
+    private ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+            
+    public static void processRequest(SelectionKey key) {
         synchronized(pool) {
-            pool.add(pool.size(), request);
+            pool.add(pool.size(), key);
             pool.notifyAll();
         }
-    }
-    
-    private void writeResponse(boolean success, Packet.Ack.AckType type, BufferedOutputStream conOut) throws IOException {
-        Packet.Ack.Builder ackBuilder = Packet.Ack.newBuilder();
-        ackBuilder.setType(type);
-        ackBuilder.setSuccess(success);
-        Packet.Ack response = ackBuilder.build();
-        response.writeDelimitedTo(conOut);
-        conOut.flush();        
-    }
-    
-    private Packet.Block getFileBlock(BufferedInputStream in ) throws IOException {
-        Packet.Block.Builder blockBuilder = Packet.Block.newBuilder();
-        blockBuilder.mergeDelimitedFrom(in);
-        Packet.Block block = blockBuilder.build();
-        System.out.println(String.format("Receive a new block(Seq:%d Size:%d Digest:%s EOF:%s)", 
-                block.getSeqNum(), block.getSize(), block.getDigest(), block.getEof()));
-        
-        return block;
-    }
-    
-	private String getHexForm( byte[] messageDigest ){
-		StringBuffer hexString = new StringBuffer();
-		for (int i=0;i<messageDigest.length;i++) {
-			String hex=Integer.toHexString(0xff & messageDigest[i]);
-			if(hex.length()==1) hexString.append('0');
-			hexString.append(hex);
+    }    
 
-		}
-		return hexString.toString() ;
-	}	
     @Override
     public void run() {
         while (true) {
-            Socket connection;
+        	SelectionKey key;
             synchronized(pool) {
                 while (pool.isEmpty()) {
                     try {
                         pool.wait();                        
                     }
-                    catch (InterruptedException e) {                        
+                    catch (InterruptedException e) {                    	
                     }
-                }
-                
-                connection = pool.remove(0);
-                System.out.println("Accept a client from "+connection.getInetAddress().toString());
+                }                
+                key = pool.remove(0);
+                key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+                System.out.println("Accept a request from "+ key.channel());
             }                
             
             try {
-                BufferedInputStream in = new BufferedInputStream(connection.getInputStream());
-                BufferedOutputStream out = new BufferedOutputStream(connection.getOutputStream());
-                if (mdsum == null) 
-                    mdsum = MessageDigest.getInstance("MD5");
-                else
-                    mdsum.reset();
-                
-                if (fout == null) {
-                    Packet.Header.Builder headerBuilder = Packet.Header.newBuilder();
-                    headerBuilder.mergeDelimitedFrom(in);
-                    Packet.Header header = headerBuilder.build();                    
-                    fout = new BufferedOutputStream(new FileOutputStream("/tmp/"+header.getFileName()));
-                    filesize = header.getFileSize();
-                    writeResponse(true, Packet.Ack.AckType.HEADER, out);
-                    System.out.println(String.format("Receive a new Header(filename:%s size:%d)",header.getFileName(), header.getFileSize()));                   
-                }
-                                
-                if (fout != null) {
-                    while (true) {
-                        Packet.Block block = getFileBlock(in);
-                        if (block.getEof()) {
-                            String digest = String.valueOf(mdsum.digest());
-							String digestHexForm = getHexForm( mdsum.digest() );
-							System.out.println( digestHexForm ) ;
-                            if (block.getDigest().equals(digestHexForm)) 
-                                writeResponse(true, Packet.Ack.AckType.EOF, out);
-                            else
-                                writeResponse(false, Packet.Ack.AckType.EOF, out);
-                            break;
-                        }
-                                              
-                        byte[] content = block.getContent().toByteArray();
-                        MessageDigest md = MessageDigest.getInstance("MD5");
-                        md.update(content);
-                        //String digest = String.valueOf(md.digest());
-						String digestHexForm = getHexForm( md.digest() );
-						System.out.println( digestHexForm ) ;
-                        if (block.getDigest().equals(digestHexForm)) {
-							System.out.println("md5 match" ) ;
-                            fout.write(content, 0, block.getSize());                           
-                            writeResponse(true, Packet.Ack.AckType.BLOCK, out);
-                            mdsum.update(content);
-                        }
-                        else {
-							System.out.println("md5 mis match" ) ;
-                            writeResponse(false, Packet.Ack.AckType.BLOCK, out);
-                        }                        
-                    }                    
-                }                
+            	SocketChannel sc = (SocketChannel) key.channel();
+            	int count = 0;    	
+            	
+            	buffer.clear();
+            	
+            	while ((count = sc.read(buffer)) > 0) {
+            		buffer.flip();
+            		writeDataToClients(buffer, sc);
+            		//sc.write(buffer);
+            		buffer.clear();
+            	}
+            	
+            	// EOF
+            	if (count < 0) {
+            		 System.out.println("Socket close");
+            		//sc.close();
+            		continue;
+            	}
+            	
+            	 key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+            	 key.selector().wakeup();
             }
-            catch (IOException e) {
-                e.printStackTrace();
-            } catch (NoSuchAlgorithmException e) {
+            catch (Exception e) {
                 e.printStackTrace();
             }
-            finally {
-                try {
-                    if (connection != null) connection.close();
-                    if (fout != null) {
-                        fout.flush();
-                        fout.close();
-                        fout = null;
-                    }
-                }
-                catch (Exception e) {
-                    // Todo:
-                }
-            }
-            
         } // end while
-    } 
-
+    }
+    
+    private void writeDataToClients(ByteBuffer buf, SocketChannel host) throws Exception{
+    	Iterator<SocketChannel> iter = TServer.clientPool.iterator();
+    	System.out.println("Host:"+ host);
+    	while (iter.hasNext()) {
+    		SocketChannel sc = iter.next();
+    		// Don't send message to self
+    		System.out.println("others:"+ sc);
+    		if (sc != host) {
+    			while (buf.hasRemaining()) {
+    				sc.write(buf);
+    			}
+    		}
+    	}    	
+    }
+    
+//    private void writeResponse(boolean success, Packet.Ack.AckType type, BufferedOutputStream conOut) throws IOException {
+//        Packet.Ack.Builder ackBuilder = Packet.Ack.newBuilder();
+//        ackBuilder.setType(type);
+//        ackBuilder.setSuccess(success);
+//        Packet.Ack response = ackBuilder.build();
+//        response.writeDelimitedTo(conOut);
+//        conOut.flush();        
+//    }
+//    
+//    private Packet.Block getFileBlock(BufferedInputStream in ) throws IOException {
+//        Packet.Block.Builder blockBuilder = Packet.Block.newBuilder();
+//        blockBuilder.mergeDelimitedFrom(in);
+//        Packet.Block block = blockBuilder.build();
+//        System.out.println(String.format("Receive a new block(Seq:%d Size:%d Digest:%s EOF:%s)", 
+//                block.getSeqNum(), block.getSize(), block.getDigest(), block.getEof()));
+//        
+//        return block;
+//    }
 }
