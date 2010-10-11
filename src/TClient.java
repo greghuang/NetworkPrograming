@@ -87,9 +87,7 @@ public class TClient {
     	
     	try {
     		while (true) {			
-    			int num = selector.select();
-    			
-    			System.out.println("Get selection " + num);
+    			int num = selector.select();    	
     			
     			// nothing to do
     			if (num == 0) continue;

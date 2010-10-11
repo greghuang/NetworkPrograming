@@ -19,14 +19,19 @@ How to build
 
 
 How to execute Server
-	in main directory..	
+	in main directory..
+	
 	./runserver.sh    
     
 How to execute client
     in main directory it will connect to a server that you must specify in command line.
 
+    After lunching clinet, you need to connect to clinet by telent
+
     ./runclient server_ip 
     
     e.g
 
-    ./runclient 127.0.0.1
+    ./runclient 10.1.113.73
+
+
