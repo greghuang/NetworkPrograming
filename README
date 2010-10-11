@@ -1,40 +1,31 @@
 Project Layout
 
 .
-|-- 3rd_party
-|   `-- protobuf-2.3.0.tar.bz2
-|-- Makefile
-|-- Makefile.inc
 |-- README
-|-- client
-|   |-- Makefile
-|   |-- client.cpp
-|   `-- test.html
-|-- pbdef
-|   `-- packet.proto
-`-- server
+`-- src
     |-- Makefile
     |-- RequestProcessor.java
     |-- TClient.java
     |-- TServer.java
     |-- build.xml
+    |-- runclient.sh
     `-- runserver.sh
 
 
 How to build
-	in main directory.
+	in src directory.
     
 	   make 
 
 
 How to execute Server
-	in main directory..	
+	in src directory..	
 
 	cd server
 	./runserver.sh    
     
 How to execute client
-    in main directory it will send a file call test.html.
+    in src directory it will send a file call test.html.
 
     cd client
 	./CLIENT  
