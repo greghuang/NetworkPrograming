@@ -1,0 +1,6 @@
+
+package protocol;
+message ServerChange{
+	required string ip = 1 ;
+
+}
