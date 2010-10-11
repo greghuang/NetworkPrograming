@@ -28,12 +28,13 @@ public class RequestProcessor implements Runnable {
                     catch (InterruptedException e) {                    	
                     }
                 }                
-                key = pool.remove(0);
-                key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-                System.out.println("Accept a request from "+ key.channel());
+                key = pool.remove(0);             
             }                
             
             try {
+            	key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+                System.out.println("Accept a request from "+ key.channel());
+                
             	SocketChannel sc = (SocketChannel) key.channel();
             	int count = 0;    	
             	
@@ -48,9 +49,9 @@ public class RequestProcessor implements Runnable {
             	
             	// EOF
             	if (count < 0) {
-            		 System.out.println("Socket close");
-            		//sc.close();
-            		continue;
+            		System.out.println("Socket close");
+            		sc.close();
+            		//continue;
             	}
             	
             	 key.interestOps(key.interestOps() | SelectionKey.OP_READ);

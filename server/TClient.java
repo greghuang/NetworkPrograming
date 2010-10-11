@@ -1,22 +1,12 @@
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.Set;
-
-import com.google.protobuf.ByteString;
-import com.trend.Packet;
-
 
 public class TClient {
     public static final String host = "localhost";
@@ -29,11 +19,11 @@ public class TClient {
     private ByteBuffer cltBuf = ByteBuffer.allocateDirect(1024);
     private ByteBuffer srvBuf = ByteBuffer.allocateDirect(1024);
     
-    public TClient() throws Exception{
+    public TClient(String[] args) throws Exception{
     	// Create a selector
     	selector = Selector.open();
     	// Connect to server
-    	connectServer();
+    	connectServer(args);
     	
     	cltBuf.clear();
     	srvBuf.clear();
@@ -50,10 +40,10 @@ public class TClient {
     	int count = 0;    	
     	
     	cltBuf.clear();
+    	//cltBuf.put("c->s".getBytes());
     	
     	while ((count = sc.read(cltBuf)) > 0) {
     		cltBuf.flip();
-    		//sc.write(cltBuf);
     		writeDataToChannel(srvChannel, cltBuf);
     		cltBuf.clear();
     	}
@@ -68,6 +58,7 @@ public class TClient {
     	int count = 0;
     	
     	srvBuf.clear();
+    	srvBuf.put("s->c:".getBytes());
     	
     	while ((count = sc.read(srvBuf)) > 0) {
     		srvBuf.flip();
@@ -146,9 +137,9 @@ public class TClient {
     	}
 	}
     
-    private void connectServer(){        
-        try {
-        	InetSocketAddress address = new InetSocketAddress(host, TServer.SERVER_PORT);
+    private void connectServer(String[] args){        
+        try {        	
+        	InetSocketAddress address = new InetSocketAddress(args[0], TServer.SERVER_PORT);
         	srvChannel = SocketChannel.open();
         	srvChannel.configureBlocking(false);
         	srvChannel.connect(address);
@@ -165,23 +156,12 @@ public class TClient {
         catch (Exception e) {
             e.printStackTrace();
         }
-//        finally {
-//            if (srvChannel != null) {
-//            	try {
-//            		srvChannel.close();
-//            		srvChannel = null;
-//            	}
-//            	catch (Exception e) {
-//            		e.printStackTrace();
-//            	}
-//            }
-//        }
     }
     
     
     public static void main(String[] args) {
         try {
-            new TClient().waitFromConsole();
+            new TClient(args).waitFromConsole();
         }
         catch (Exception e) {
             System.out.println("Fatal:"+e.getMessage());
