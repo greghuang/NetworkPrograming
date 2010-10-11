@@ -2,7 +2,7 @@
 
     <property name="dir.class" location="class"/>
     <property name="dir.lib" location="lib"/>
-    <property name="dir.src" location="."/>
+    <property name="dir.src" location="src"/>
     <property name="file.jar" value="netpro.jar"/>
 
     <path id="class.path">
