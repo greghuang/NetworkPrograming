@@ -26,12 +26,14 @@ How to execute Server
 How to execute client
     in main directory it will connect to a server that you must specify in command line.
 
-    After lunching clinet, you need to connect to clinet by telent
+    After lunching clinet, you need to connect to clinet by telent with 1006 port
 
     ./runclient server_ip 
     
     e.g
 
     ./runclient 10.1.113.73
+
+    telnet 127.0.0.1 1006
 
 
