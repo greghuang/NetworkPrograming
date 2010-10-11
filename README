@@ -2,44 +2,31 @@ Project Layout
 
 .
 |-- README
+|-- build.xml
+|-- Makefile
+|-- runclient.sh
+|-- runserver.sh
 `-- src
-    |-- Makefile
     |-- RequestProcessor.java
     |-- TClient.java
     |-- TServer.java
-    |-- build.xml
-    |-- runclient.sh
-    `-- runserver.sh
 
 
 How to build
-	in src directory.
+	in main directory.
     
 	   make 
 
 
 How to execute Server
-	in src directory..	
-
-	cd server
+	in main directory..	
 	./runserver.sh    
     
 How to execute client
-    in src directory it will send a file call test.html.
+    in main directory it will connect to a server that you must specify in command line.
 
-    cd client
-	./CLIENT  
+    ./runclient server_ip 
+    
+    e.g
 
-      or
-
-    cd client 
-    ./CLIENT ip port file_tosend
-
-    e.g.
-
-    ./CLIENT 127.0.0.1 2010 test.html
-
-Where the server save file?
-
-    it will be put in /tmp/
-
+    ./runclient 127.0.0.1
