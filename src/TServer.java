@@ -64,6 +64,7 @@ public class TServer {
     					int count = 0;
     					buffer.clear();
     					
+    					ClientNodes.Builder clientNodes = ClientNodes.newBuilder();
     					while ((count = sc.read(buffer)) > 0) {
     						buffer.flip();
     						int size = buffer.getInt();
@@ -76,7 +77,7 @@ public class TServer {
     						Node node = builder.build();
 
     						// Write Back Server List.    					
-        					ClientNodes.Builder clientNodes = ClientNodes.newBuilder();
+        					
         					clientNodes.addNodes(node);
         					
         					// return client list
@@ -90,15 +91,23 @@ public class TServer {
     						System.out.println("Socket close");
     						sc.close();
     					}
-    					
-//    					
-//    					for( SocketChannel client : clientPool){
-//    						Socket clientSocket = client.socket();
-//    						
-//    						OutputStream old_client_out = clientSocket.getOutputStream();
-//    						clientNodes.build().writeDelimitedTo(old_client_out);
-//    						
-//    					}    					
+    					else{
+        					
+        					for( SocketChannel client_channel : clientPool){
+        						if( client_channel == sc )
+        							continue;
+        						ClientNodes clientNodes_instance = clientNodes.build();
+        						int client_size = clientNodes_instance.getSerializedSize();
+        						ByteBuffer buf = ByteBuffer.allocateDirect(1024);
+        						buf.clear();
+        			        	buf.putInt(client_size ).put(clientNodes_instance.toByteArray());
+        			        	//cltBuf.put(node.toByteArray());
+        			        	buf.flip();
+        			        	client_channel.write(buf);  
+        						
+        					}    	
+    					}
+				
     				}
     				
     				it.remove();
