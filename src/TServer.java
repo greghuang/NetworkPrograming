@@ -1,6 +1,10 @@
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -9,7 +13,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-
+import protocol.Protocol.ServerChange;
+import protocol.Protocol.ServerChangeList;
 public class TServer {   
     public static final int SERVER_PORT = 2010;
     public static final int SERVER_TIMEOUT = 10000;
@@ -53,8 +58,26 @@ public class TServer {
     				if ( key.isAcceptable() ) {					
     					ServerSocketChannel svrSocketChannel = (ServerSocketChannel) key.channel();
     					SocketChannel sc = svrSocketChannel.accept();
+    					
     					sc.configureBlocking(false);
     					sc.register(selector, SelectionKey.OP_READ);
+    					ServerChangeList changeList;
+    					// Write Back Server List.
+    					for( SocketChannel client : clientPool){
+    						Socket clientSocket = client.socket();
+    						
+    						OutputStream clientOutput = clientSocket.getOutputStream();
+    						
+    					}
+    					
+    					//Save client information.
+    					
+    					Socket socket = sc.socket();
+    					InetAddress clientAddress = socket.getInetAddress();
+    					String clientHostName = clientAddress.getCanonicalHostName();
+    					int port = socket.getPort();
+    					
+    					//Save to client.
     					clientPool.add(sc);
     					System.out.println("Accept a connection from " + sc);    					
     				}

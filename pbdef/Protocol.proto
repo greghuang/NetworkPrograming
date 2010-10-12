@@ -10,3 +10,6 @@ message ServerChange{
 	}
     required ServerConnectivity connectivity = 3;
 }
+message ServerChangeList{
+	repeated ServerChange all_change = 1;
+}

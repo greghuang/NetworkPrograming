@@ -21,7 +21,8 @@ SERVER_LIB=$(shell pwd)/${LIBPATH}/${PROTOBUF_JAVA_RUNTIME}
 
 
 all:${SERVER_LIB}  PROTOCOL 
-	echo "finisth build	"
+
+	@echo "finisth build librarys"
 
 PHONY=$(PROTOCOL)
 
