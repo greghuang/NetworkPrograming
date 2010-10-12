@@ -1,6 +1,12 @@
 
 package protocol;
+
 message ServerChange{
 	required string ip = 1 ;
-
+	required int32 port  = 2 ;
+	enum ServerConnectivity{
+		CONNECTED = 0 ;
+	    DISCONNECTED = 1;
+	}
+    required ServerConnectivity connectivity = 3;
 }
