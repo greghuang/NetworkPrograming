@@ -32,30 +32,34 @@ public class RequestProcessor implements Runnable {
             }                
             
             try {
-            	key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-                System.out.println("Accept a request from "+ key.channel());
-                
-            	SocketChannel sc = (SocketChannel) key.channel();
-            	int count = 0;    	
-            	
-            	buffer.clear();
-            	
-            	while ((count = sc.read(buffer)) > 0) {
-            		buffer.flip();
-            		writeDataToClients(buffer, sc);
-            		//sc.write(buffer);
-            		buffer.clear();
-            	}
-            	
-            	// EOF
-            	if (count < 0) {
-            		System.out.println("Socket close");
-            		sc.close();
-            		//continue;
-            	}
-            	
-            	 key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-            	 key.selector().wakeup();
+				if (key.isValid()) {
+					key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+
+					System.out.print("Handle a request...");
+
+					SocketChannel sc = (SocketChannel) key.channel();
+					
+					int count = 0;
+
+					buffer.clear();
+
+					while ((count = sc.read(buffer)) > 0) {
+						buffer.flip();
+						writeDataToClients(buffer, sc);
+						// sc.write(buffer);
+						buffer.clear();
+					}
+
+					// EOF
+					if (count < 0) {
+						System.out.println("Socket close");
+						sc.close();
+						// continue;
+					}
+
+					key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+					key.selector().wakeup();
+				}
             }
             catch (Exception e) {
                 e.printStackTrace();
@@ -64,17 +68,14 @@ public class RequestProcessor implements Runnable {
     }
     
     private void writeDataToClients(ByteBuffer buf, SocketChannel host) throws Exception{
-    	Iterator<SocketChannel> iter = TServer.clientPool.iterator();
-    	System.out.println("Host:"+ host);
+    	Iterator<SocketChannel> iter = TClient.clientPool.iterator();
+    	
     	while (iter.hasNext()) {
-    		SocketChannel sc = iter.next();
-    		// Don't send message to self
-    		System.out.println("others:"+ sc);
-    		if (sc != host) {
-    			while (buf.hasRemaining()) {
-    				sc.write(buf);
-    			}
+    		SocketChannel sc = iter.next();    		
+    		while (buf.hasRemaining()) {
+    			sc.write(buf);
     		}
+    		System.out.println("Send mesaage to client "+ sc.socket().getInetAddress().getHostAddress());
     	}    	
     }
     
