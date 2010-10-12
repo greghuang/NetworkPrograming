@@ -20,7 +20,7 @@ begin: all
 SERVER_LIB=$(shell pwd)/${LIBPATH}/${PROTOBUF_JAVA_RUNTIME} 
 
 
-all:${SERVER_LIB}  PROTOCOL begin
+all:${SERVER_LIB}  PROTOCOL 
 	echo "finisth build	"
 
 PHONY=$(PROTOCOL)
