@@ -60,15 +60,16 @@ public class TServer {
     					ServerSocketChannel svrSocketChannel = (ServerSocketChannel) key.channel();
     					SocketChannel sc = svrSocketChannel.accept();
     					
-    					sc.configureBlocking(false);
-    					sc.register(selector, SelectionKey.OP_READ);
-    					
-    					
-    					
     					//Get just connected Client Information.
     					Socket new_client_socket = sc.socket();
     					InputStream new_client_is = new_client_socket.getInputStream();
     					Node node = Node.parseDelimitedFrom(new_client_is);
+    					
+    					
+    					
+    					
+    					
+    				
     					
     					// Write Back Server List.
     					
@@ -84,7 +85,8 @@ public class TServer {
     					}
     					
     					
-    					
+    					sc.configureBlocking(false);
+    					sc.register(selector, SelectionKey.OP_READ);
     					//Save to client.
     					clientPool.add(sc);
     					System.out.println("Accept a connection from " + sc);    					

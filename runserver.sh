@@ -1,1 +1,1 @@
-java  -cp lib/server.jar:class TServer
+java  -cp lib/*:class TServer
