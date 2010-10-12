@@ -6,6 +6,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -15,22 +16,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import protocol.Protocol.Node;
-import protocol.Protocol.ClientNodes;;
+import protocol.Protocol.ClientNodes;
 public class TServer {   
     public static final int SERVER_PORT = 2010;
     public static final int SERVER_TIMEOUT = 10000;
-    private final int MAX_NUM_THREAD = 5;
     private Selector selector = null;
-    public static List<SocketChannel> clientPool = new LinkedList<SocketChannel>();
-    
-    public TServer() throws Exception{    	
-        for (int i = 0; i < MAX_NUM_THREAD; i++) {
-            Thread t = new Thread(new RequestProcessor());
-            t.start();
-        }
-        System.out.println("Create "+MAX_NUM_THREAD+" threads as worker thread...done");
-    }
-    
+    private List<SocketChannel> clientPool = new LinkedList<SocketChannel>();
+    private ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+        
     public void waitRequest() throws IOException {
     	ServerSocketChannel ssc = ServerSocketChannel.open();
     	ssc.configureBlocking( false );
@@ -58,42 +51,54 @@ public class TServer {
     				// Is it a new connection?
     				if ( key.isAcceptable() ) {					
     					ServerSocketChannel svrSocketChannel = (ServerSocketChannel) key.channel();
-    					SocketChannel sc = svrSocketChannel.accept();
-    					
-    					//Get just connected Client Information.
-    					Socket new_client_socket = sc.socket();
-    					InputStream new_client_is = new_client_socket.getInputStream();
-    					Node node = Node.parseDelimitedFrom(new_client_is);
-    					
-    					
-    					
-    					
-    					
-    				
-    					
-    					// Write Back Server List.
-    					
-    					ClientNodes.Builder clientNodes = ClientNodes.newBuilder();
-    					clientNodes.addNodes(node);
-    					
-    					for( SocketChannel client : clientPool){
-    						Socket clientSocket = client.socket();
-    						
-    						OutputStream old_client_out = clientSocket.getOutputStream();
-    						clientNodes.build().writeDelimitedTo(old_client_out);
-    						
-    					}
-    					
-    					
-    					sc.configureBlocking(false);
-    					sc.register(selector, SelectionKey.OP_READ);
-    					//Save to client.
-    					clientPool.add(sc);
-    					System.out.println("Accept a connection from " + sc);    					
+    					SocketChannel sc = svrSocketChannel.accept();    					    				
+    					sc.configureBlocking(false);	
+    			    	sc.register(selector, SelectionKey.OP_READ);
+    			    	clientPool.add(sc);
+    			    	System.out.println("add a connection from " + sc.socket().getInetAddress().getHostAddress());    					
     				}
     				// Read the data
     				else if (key.isReadable()) {
-    					RequestProcessor.processRequest(key);
+    					//Get just connected Client Information
+    					SocketChannel sc = (SocketChannel) key.channel();    					
+    					int count = 0;
+    					buffer.clear();
+    					
+    					while ((count = sc.read(buffer)) > 0) {
+    						buffer.flip();
+    						int size = buffer.getInt();
+    						byte[] array = new byte[size];
+    						buffer.get(array);
+    						System.out.println("Protobuf size:" + size);
+    						
+    						Node.Builder builder = Node.newBuilder();
+    						builder.mergeFrom(array);
+    						Node node = builder.build();
+
+    						// Write Back Server List.    					
+        					ClientNodes.Builder clientNodes = ClientNodes.newBuilder();
+        					clientNodes.addNodes(node);
+        					
+        					// return client list
+        					
+    						System.out.println("Build a node ok");    						
+    						buffer.clear();
+    					}
+    					
+    					// EOF
+    					if (count < 0) {
+    						System.out.println("Socket close");
+    						sc.close();
+    					}
+    					
+//    					
+//    					for( SocketChannel client : clientPool){
+//    						Socket clientSocket = client.socket();
+//    						
+//    						OutputStream old_client_out = clientSocket.getOutputStream();
+//    						clientNodes.build().writeDelimitedTo(old_client_out);
+//    						
+//    					}    					
     				}
     				
     				it.remove();

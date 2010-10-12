@@ -21,11 +21,14 @@ import protocol.Protocol.Node;
 public class TClient {
     public static final String host = "localhost";
     public static final int DEFAULT_CLIENT_PORT = 1006;
-    public static List<SocketChannel> clientPool = new LinkedList<SocketChannel>();
+    public static List<SocketChannel> clientList = new LinkedList<SocketChannel>(); // other TClient
+    public static List<SocketChannel> myClientPool = new LinkedList<SocketChannel>(); // the client connects to this TClient
+    
     private final int MAX_NUM_PROCESSOR = 5;
     private int socket_port = DEFAULT_CLIENT_PORT;
     private Selector selector = null;
     private SocketChannel srvChannel = null;
+     
     private boolean isServerReady = false;    
     private ByteBuffer cltBuf = ByteBuffer.allocateDirect(1024);
     
@@ -41,12 +44,6 @@ public class TClient {
         }
     	
     	cltBuf.clear();
-    }
-    
-    private void writeDataToChannel (SocketChannel channel, ByteBuffer buf) throws Exception{
-    	while (buf.hasRemaining()) {
-    		channel.write(buf);			
-		}
     }
     
     private void readDataFromServer (SelectionKey key) throws Exception {
@@ -77,7 +74,7 @@ public class TClient {
     private void addClient (SocketChannel sc) throws Exception {
     	sc.configureBlocking(false);	
     	sc.register(selector, SelectionKey.OP_READ);    	
-    	clientPool.add(sc);
+    	clientList.add(sc);
     	System.out.println("add a connection from " + sc.socket().getInetAddress().getHostAddress());
     }
     
@@ -104,7 +101,7 @@ public class TClient {
     }
     
     private void removeClient(String ip) {
-    	Iterator<SocketChannel> iter = TServer.clientPool.iterator();
+    	Iterator<SocketChannel> iter = clientList.iterator();
     	System.out.println("Host:"+ host);
     	while (iter.hasNext()) {
     		SocketChannel sc = iter.next();
@@ -115,7 +112,7 @@ public class TClient {
     }
     
     private boolean isClientExist(String ip, int port) {
-    	Iterator<SocketChannel> iter = clientPool.iterator();
+    	Iterator<SocketChannel> iter = clientList.iterator();
 
     	while (iter.hasNext()) {
     		SocketChannel sc = iter.next();
@@ -129,7 +126,7 @@ public class TClient {
 
     
     private boolean isClientExist(SocketChannel target) {
-    	Iterator<SocketChannel> iter = clientPool.iterator();
+    	Iterator<SocketChannel> iter = clientList.iterator();
 
     	while (iter.hasNext()) {
     		SocketChannel sc = iter.next();
@@ -172,21 +169,23 @@ public class TClient {
     				if ( key.isAcceptable() ) {					
     					ServerSocketChannel svrSocketChannel = (ServerSocketChannel) key.channel();
     					SocketChannel sc = svrSocketChannel.accept();
-    					
-    					if (!isClientExist(sc)) {
-    						addClient(sc);
-    					}
+    					sc.configureBlocking(false);	
+    			    	sc.register(selector, SelectionKey.OP_READ);
+    			    	myClientPool.add(sc);
+    			    	System.out.println("add a connection from " + sc.socket().getInetAddress().getHostAddress());    					
     				}
     				// Read the data
     				else if (key.isReadable()) {
     					System.out.println ("A readable key is coming");
     					   					
     					boolean isFromServer = (key.channel() == srvChannel);
+    					boolean isNeighbor = isClientExist((SocketChannel) key.channel());
+    					key.attach(new Boolean(isNeighbor));
     					
     					if (isFromServer)
     						readDataFromServer(key);
     					else
-    						RequestProcessor.processRequest(key);
+    						RequestProcessor.processRequest(key);    					
     				}
     				
     				it.remove();
@@ -222,17 +221,20 @@ public class TClient {
         	srvChannel.register(selector, SelectionKey.OP_READ);
         	
         	// Send the listening IP and port
-        	Protocol.Node.Builder builder = Protocol.Node.newBuilder();        	
+        	Protocol.Node.Builder builder = Protocol.Node.newBuilder();
         	InetAddress localhost = InetAddress.getLocalHost();
         	builder.setIp(localhost.getHostAddress());
         	builder.setPort(socket_port);
         	builder.setConnectivity(Node.NodeConnectivity.CONNECTED);
         	Protocol.Node node = builder.build();
-        	node.writeDelimitedTo(Channels.newOutputStream(srvChannel));
-        	
+        	cltBuf.clear();
+        	cltBuf.putInt(node.getSerializedSize()).put(node.toByteArray());
+        	//cltBuf.put(node.toByteArray());
+        	cltBuf.flip();
+        	srvChannel.write(cltBuf);        	
             isServerReady = true;
             
-            System.out.println("Connect to server on " + address);
+            System.out.println("Connect to server on " + address + " " + node.getSerializedSize());            
         }
         catch (Exception e) {
             e.printStackTrace();

@@ -45,8 +45,7 @@ public class RequestProcessor implements Runnable {
 
 					while ((count = sc.read(buffer)) > 0) {
 						buffer.flip();
-						writeDataToClients(buffer, sc);
-						// sc.write(buffer);
+						writeDataToChannel(buffer, sc);
 						buffer.clear();
 					}
 
@@ -54,7 +53,6 @@ public class RequestProcessor implements Runnable {
 					if (count < 0) {
 						System.out.println("Socket close");
 						sc.close();
-						// continue;
 					}
 
 					key.interestOps(key.interestOps() | SelectionKey.OP_READ);
@@ -67,8 +65,8 @@ public class RequestProcessor implements Runnable {
         } // end while
     }
     
-    private void writeDataToClients(ByteBuffer buf, SocketChannel host) throws Exception{
-    	Iterator<SocketChannel> iter = TClient.clientPool.iterator();
+    private void writeDataToChannel(ByteBuffer buf, SocketChannel host) throws Exception{
+    	Iterator<SocketChannel> iter = TClient.clientList.iterator();
     	
     	while (iter.hasNext()) {
     		SocketChannel sc = iter.next();    		
