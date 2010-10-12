@@ -13,6 +13,9 @@ endif
 begin:
 	@ant
 
+proto:
+	./3rd_party/google/build/bin/protoc --proto_path=./pbdef/ --java_out=$(SRCPATH) ./pbdef/packet.proto
+
 clean:
 	rm -r $(LIBPATH)
 	rm -r $(OUTPATH)
