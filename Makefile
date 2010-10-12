@@ -13,7 +13,7 @@ ifndef BUILD_TAG
 BUILD_TAG=`date +%Y%m%d`
 endif
 
-begin:
+begin: all 
 	@ant
 
 
