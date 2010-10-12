@@ -14,6 +14,3 @@ message Node {
 message ClientNodes {
 	repeated Node nodes = 1;
 }
-message ServerChangeList{
-	repeated ServerChange all_change = 1;
-}

@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -13,8 +14,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import protocol.Protocol.ServerChange;
-import protocol.Protocol.ServerChangeList;
+import protocol.Protocol.Node;
+import protocol.Protocol.ClientNodes;;
 public class TServer {   
     public static final int SERVER_PORT = 2010;
     public static final int SERVER_TIMEOUT = 10000;
@@ -61,21 +62,28 @@ public class TServer {
     					
     					sc.configureBlocking(false);
     					sc.register(selector, SelectionKey.OP_READ);
-    					ServerChangeList changeList;
+    					
+    					
+    					
+    					//Get just connected Client Information.
+    					Socket new_client_socket = sc.socket();
+    					InputStream new_client_is = new_client_socket.getInputStream();
+    					Node node = Node.parseDelimitedFrom(new_client_is);
+    					
     					// Write Back Server List.
+    					
+    					ClientNodes.Builder clientNodes = ClientNodes.newBuilder();
+    					clientNodes.addNodes(node);
+    					
     					for( SocketChannel client : clientPool){
     						Socket clientSocket = client.socket();
     						
-    						OutputStream clientOutput = clientSocket.getOutputStream();
+    						OutputStream old_client_out = clientSocket.getOutputStream();
+    						clientNodes.build().writeDelimitedTo(old_client_out);
     						
     					}
     					
-    					//Save client information.
     					
-    					Socket socket = sc.socket();
-    					InetAddress clientAddress = socket.getInetAddress();
-    					String clientHostName = clientAddress.getCanonicalHostName();
-    					int port = socket.getPort();
     					
     					//Save to client.
     					clientPool.add(sc);
