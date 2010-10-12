@@ -103,8 +103,7 @@ public class TServer {
         			        	buf.putInt(client_size ).put(clientNodes_instance.toByteArray());
         			        	//cltBuf.put(node.toByteArray());
         			        	buf.flip();
-        			        	client_channel.write(buf);  
-        						
+        			        	client_channel.write(buf);          						
         					}    	
     					}
 				

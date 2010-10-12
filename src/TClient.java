@@ -46,10 +46,9 @@ public class TClient {
     	cltBuf.clear();
     }
     
-    private void readDataFromServer (SelectionKey key) throws Exception {
+    private void readDataFromServer(SelectionKey key) throws Exception {
     	SocketChannel sc = (SocketChannel) key.channel();
-    	InputStream in = Channels.newInputStream(sc);
-    	ClientNodes clients = getAllClients(in);
+    	ClientNodes clients = getAllClients(sc);
     	
     	for (Protocol.Node node : clients.getNodesList()) {
     		if (node.getConnectivity() == Node.NodeConnectivity.CONNECTED) {
@@ -60,14 +59,35 @@ public class TClient {
     	}
     }
     
-	private ClientNodes getAllClients(InputStream in) throws Exception {
-		ClientNodes.Builder builder = ClientNodes.newBuilder();
-		builder.mergeDelimitedFrom(in);
-		ClientNodes clients = builder.build();
+	private ClientNodes getAllClients(SocketChannel sc) throws Exception {
+		cltBuf.clear();
+		int count = 0;
+		ClientNodes clients = null;
+				
+		while ((count = sc.read(cltBuf)) > 0) {
+			cltBuf.flip();
+			int size = cltBuf.getInt();
+			byte[] array = new byte[size];
+			cltBuf.get(array);
+			
+			System.out.println("Protobuf size:" + size);
+			
+			ClientNodes.Builder builder = ClientNodes.newBuilder();
+			builder.mergeFrom(array);
+			clients = builder.build();
+			cltBuf.clear();
+		}
 		
+		// EOF
+		if (count < 0) {
+			System.out.println("Socket close");
+			sc.close();
+		}
 //		System.out.println(String.format("Receive a new block(Seq:%d Size:%d Digest:%s EOF:%s)", 
 //				block.getSeqNum(), block.getSize(), block.getDigest(), block.getEof()));
 
+		System.out.println("Get "+ clients.getNodesCount() +" client node from server");
+		
 		return clients;
 	}
     
