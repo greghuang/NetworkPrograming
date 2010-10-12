@@ -1,32 +1,41 @@
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
+
+import protocol.Protocol;
 
 public class TClient {
     public static final String host = "localhost";
     public static final int CLIENT_PORT = 1006;
+    public static List<SocketChannel> clientPool = new LinkedList<SocketChannel>();
+    private final int MAX_NUM_PROCESSOR = 5;
     private Selector selector = null;
     private SocketChannel srvChannel = null;
-    private SocketChannel cltChannel = null;
-    private boolean isServerReady = false;
-    
+    private boolean isServerReady = false;    
     private ByteBuffer cltBuf = ByteBuffer.allocateDirect(1024);
-    private ByteBuffer srvBuf = ByteBuffer.allocateDirect(1024);
     
     public TClient(String[] args) throws Exception{
     	// Create a selector
     	selector = Selector.open();
     	// Connect to server
     	connectServer(args);
+    	// Create request processor
+    	for (int i = 0; i < MAX_NUM_PROCESSOR; i++) {
+            Thread t = new Thread(new RequestProcessor());
+            t.start();
+        }
     	
     	cltBuf.clear();
-    	srvBuf.clear();
     }
     
     private void writeDataToChannel (SocketChannel channel, ByteBuffer buf) throws Exception{
@@ -34,17 +43,18 @@ public class TClient {
     		channel.write(buf);			
 		}
     }
-        
-    private void readDataFromClient (SelectionKey key) throws Exception {
+    
+    private void readDataFromServer (SelectionKey key) throws Exception {
     	SocketChannel sc = (SocketChannel) key.channel();
-    	int count = 0;    	
+    	InputStream in = Channels.newInputStream(sc);
+    	
+    	
+    	int count = 0;
     	
     	cltBuf.clear();
-    	//cltBuf.put("c->s".getBytes());
     	
     	while ((count = sc.read(cltBuf)) > 0) {
-    		cltBuf.flip();
-    		writeDataToChannel(srvChannel, cltBuf);
+    		cltBuf.flip();   		
     		cltBuf.clear();
     	}
     	
@@ -53,27 +63,40 @@ public class TClient {
     	}
     }
     
-    private void readDataFromServer (SelectionKey key) throws Exception {
-    	SocketChannel sc = (SocketChannel) key.channel();
-    	int count = 0;
-    	
-    	srvBuf.clear();
-    	srvBuf.put("s->c:".getBytes());
-    	
-    	while ((count = sc.read(srvBuf)) > 0) {
-    		srvBuf.flip();
-    		writeDataToChannel(cltChannel, srvBuf);    		
-    		srvBuf.clear();
-    	}
-    	
-    	if (count < 0) {
-    		sc.close();
-    	}
+	private ServerChange getFileBlock(InputStream in) throws Exception {
+		ServerChange.Builder builder = ServerChange.newBuilder();
+		
+		Packet.Block.Builder blockBuilder = Packet.Block.newBuilder();
+		blockBuilder.mergeDelimitedFrom(in);
+		Packet.Block block = blockBuilder.build();
+		System.out.println(String.format("Receive a new block(Seq:%d Size:%d Digest:%s EOF:%s)", 
+				block.getSeqNum(), block.getSize(), block.getDigest(), block.getEof()));
+
+		return block;
+	}
+    
+    private void addClient (SocketChannel sc) throws Exception {
+    	sc.configureBlocking(false);	
+    	sc.register(selector, SelectionKey.OP_READ);    	
+    	clientPool.add(sc);
+    	System.out.println("add a connection from " + sc.socket().getInetAddress().getHostAddress());
     }
     
-    public void waitFromConsole() throws Exception{
+    private boolean isClientExist(SocketChannel target) {
+    	Iterator<SocketChannel> iter = clientPool.iterator();
+
+    	while (iter.hasNext()) {
+    		SocketChannel sc = iter.next();
+    		if (sc == target) {
+    			return true;
+    		}
+    	}
+    	return false;
+    }
+    
+    public void serveRequest() throws Exception{
     	if (!isServerReady) {
-    		System.out.println("Server is not ready, terminate now");
+    		System.out.println("Server is not ready, exit now");
     		return;
     	}
     	    	
@@ -102,20 +125,22 @@ public class TClient {
     				// Is it a new connection?
     				if ( key.isAcceptable() ) {					
     					ServerSocketChannel svrSocketChannel = (ServerSocketChannel) key.channel();
-    					cltChannel = svrSocketChannel.accept();
-    					cltChannel.configureBlocking(false);
-    					cltChannel.register(selector, SelectionKey.OP_READ);
-    					System.out.println("Accept a console connection from " + cltChannel);					
+    					SocketChannel sc = svrSocketChannel.accept();
+    					
+    					if (!isClientExist(sc)) { 
+    						addClient(sc);
+    					}
     				}
     				// Read the data
     				else if (key.isReadable()) {
     					System.out.println ("A readable key is coming");
+    					   					
     					boolean isFromServer = (key.channel() == srvChannel);
-    					if (isFromServer) {
+    					
+    					if (isFromServer)
     						readDataFromServer(key);
-    					} else {
-    						readDataFromClient(key);
-    					}
+    					else
+    						RequestProcessor.processRequest(key);
     				}
     				
     				it.remove();
@@ -128,12 +153,46 @@ public class TClient {
     	finally {
     		try {
     			if (srvChannel != null) srvChannel.close();
-    			if (cltChannel != null) cltChannel.close();
     		} catch (Exception e) {
     			e.printStackTrace();
     		}
     	}
 	}
+    
+    private void connectClient(String ip, int port) {
+    	try {
+    		InetSocketAddress address = new InetSocketAddress(ip, port);
+    		SocketChannel sc = SocketChannel.open();
+        	sc.configureBlocking(false);
+        	sc.connect(address);
+        	
+        	// Wait the connection ready
+        	while (!sc.finishConnect()) {
+        		Thread.sleep(50);
+        	}
+        	
+        	sc.register(selector, SelectionKey.OP_READ);
+        	
+        	clientPool.add(sc);
+                        
+            System.out.println("Connect to client on " + address + " with " + port + " port");
+    	}
+    	catch (Exception e) {
+    		e.printStackTrace();
+    	}
+    }
+    
+    private void removeClient(String ip) {
+    	Iterator<SocketChannel> iter = TServer.clientPool.iterator();
+    	System.out.println("Host:"+ host);
+    	while (iter.hasNext()) {
+    		SocketChannel sc = iter.next();
+    		if (sc.socket().getInetAddress().getHostAddress().equals(ip)) {
+    			// Todo
+    		}
+    			
+    	}
+    }
     
     private void connectServer(String[] args){        
         try {        	
@@ -158,8 +217,13 @@ public class TClient {
     
     
     public static void main(String[] args) {
+    	if (args == null || args[0] == null) {
+    		System.out.println("Missing server IP, e.g TClient 10.1.100.99");
+    		return;
+    	}
+    	
         try {
-            new TClient(args).waitFromConsole();
+            new TClient(args).serveRequest();
         }
         catch (Exception e) {
             System.out.println("Fatal:"+e.getMessage());

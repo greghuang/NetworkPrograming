@@ -1,12 +1,16 @@
 
 package protocol;
 
-message ServerChange{
+message Node {
 	required string ip = 1 ;
 	required int32 port  = 2 ;
-	enum ServerConnectivity{
+	enum NodeConnectivity{
 		CONNECTED = 0 ;
-	    DISCONNECTED = 1;
+		DISCONNECTED = 1;
 	}
-    required ServerConnectivity connectivity = 3;
+	required NodeConnectivity connectivity = 3;
+}
+
+message ClientNodes {
+	repeated Node nodes = 1;
 }
