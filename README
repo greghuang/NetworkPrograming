@@ -29,12 +29,12 @@ How to execute client
 
     After lunching clinet, you need to connect to clinet by telent with 1006 port
 
-    ./runclient server_ip 
+    ./runclient server_ip listening_port 
     
     e.g
 
-    ./runclient 10.1.113.73
+    ./runclient 10.1.113.73 5555
 
-    telnet 127.0.0.1 1006
+    telnet 127.0.0.1 5555
 
 

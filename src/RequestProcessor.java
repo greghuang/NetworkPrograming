@@ -66,15 +66,12 @@ public class RequestProcessor implements Runnable {
 						
 						buffer.flip();						
 						if (key.attachment() == TYPE_CLIENT) {
-							System.out.println("The key is from console");
 							writeDataToRelay(sc);
 						} else if (key.attachment() == TYPE_SERVER) {
-							System.out.println("The key is from server");
 							Thread.sleep(100);
 							readDataFromServer(key);
 						} else if (key.attachment() == TYPE_RELAY) {							
-							writeDataToConsole(sc);
-							System.out.println("The key is from relay");							
+							writeDataToConsole(sc);														
 						}
 						buffer.clear();
 					}

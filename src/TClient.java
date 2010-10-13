@@ -1,10 +1,8 @@
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -30,11 +28,7 @@ public class TClient {
     private boolean isServerReady = false;    
     private ByteBuffer cltBuf = ByteBuffer.allocateDirect(1024);
     
-    public TClient(String[] args) throws Exception{
-    	// Create a selector
-    	selector = Selector.open();
-    	// Connect to server
-    	connectServer(args);
+    public TClient() throws Exception{
     	// Create request processor
     	for (int i = 0; i < MAX_NUM_PROCESSOR; i++) {
             Thread t = new Thread(new RequestProcessor(this));
@@ -110,7 +104,12 @@ public class TClient {
     	return false;
     }
     
-    public void serveRequest() throws Exception{
+    public void serveRequest(String[] args) throws Exception {
+    	// Create a selector
+    	selector = Selector.open();
+    	// Connect to server
+    	connectServer(args);
+    	
     	if (!isServerReady) {
     		System.out.println("Server is not ready, exit now");
     		return;
@@ -210,7 +209,7 @@ public class TClient {
     	}
     	
         try {
-            new TClient(args).serveRequest();
+            new TClient().serveRequest(args);
         }
         catch (Exception e) {
             System.out.println("Fatal:"+e.getMessage());
