@@ -14,8 +14,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-import protocol.Protocol;
-import protocol.Protocol.ClientNodes;
 import protocol.Protocol.Node;
 
 public class TClient {
@@ -53,14 +51,14 @@ public class TClient {
     		sc.register(selector, SelectionKey.OP_READ);
     	}    	
     	relayList.add(sc);
-    	System.out.println("add a relay channel from " + sc.socket().getInetAddress().getHostAddress());
+    	System.out.println("add a relay connection from " + sc.socket().getInetAddress().getHostAddress());
     }
        
     public void addSocketChannel (SocketChannel sc) throws Exception {
     	sc.configureBlocking(false);	
     	sc.register(selector, SelectionKey.OP_READ);
     	scList.add(sc);
-    	System.out.println("add a connection from " + sc.socket().getInetAddress().getHostAddress());
+    	System.out.println("add a socket connection from " + sc.socket().getInetAddress().getHostAddress());
     }
     
     public  void removeSocketChannel(SocketChannel target) {
@@ -70,17 +68,6 @@ public class TClient {
     		SocketChannel sc = iter.next();
     		if (sc == target) {
     			iter.remove();
-    		}    			
-    	}
-    }
-    
-    private void removeClient(String ip) {
-    	Iterator<SocketChannel> iter = scList.iterator();
-    	System.out.println("Host:"+ host);
-    	while (iter.hasNext()) {
-    		SocketChannel sc = iter.next();
-    		if (sc.socket().getInetAddress().getHostAddress().equals(ip)) {
-    			// Todo
     		}    			
     	}
     }
@@ -155,22 +142,12 @@ public class TClient {
     				if ( key.isAcceptable() ) {					
     					ServerSocketChannel svrSocketChannel = (ServerSocketChannel) key.channel();
     					SocketChannel sc = svrSocketChannel.accept();
-    					addSocketChannel(sc);    					
+    					addSocketChannel(sc);					
     				}
     				// Read the data
     				else if (key.isReadable()) {
-    					System.out.println ("A readable key is coming");
     					RequestProcessor.processRequest(key);
-    					Thread.sleep(10);
-    					   					
-//    					boolean isFromServer = (key.channel() == srvChannel);
-//    					boolean isNeighbor = isClientExist((SocketChannel) key.channel());
-//    					key.attach(new Boolean(isNeighbor));
-    					
-//    					if (isFromServer)
-//    						readDataFromServer(key);
-//    					else
-//    						RequestProcessor.processRequest(key);    					
+    					Thread.sleep(10);    					   					
     				}
     				
     				it.remove();
@@ -204,12 +181,12 @@ public class TClient {
         	srvChannel.register(selector, SelectionKey.OP_READ);
         	
         	// Send the listening IP and port
-        	Protocol.Node.Builder builder = Protocol.Node.newBuilder();
+        	Node.Builder builder = Node.newBuilder();
         	InetAddress localhost = InetAddress.getLocalHost();
         	builder.setIp(localhost.getHostAddress());
         	builder.setPort(socket_port);
         	builder.setConnectivity(Node.NodeConnectivity.CONNECTED);
-        	Protocol.Node node = builder.build();
+        	Node node = builder.build();
         	cltBuf.clear();
         	cltBuf.putInt(node.getSerializedSize()).put(node.toByteArray());
         	//cltBuf.put(node.toByteArray());
@@ -217,7 +194,7 @@ public class TClient {
         	srvChannel.write(cltBuf);        	
             isServerReady = true;
             
-            System.out.println("Connect to server on " + address + " " + node.getSerializedSize());            
+            System.out.println("Connect to server on " + address);            
         }
         catch (Exception e) {
             e.printStackTrace();

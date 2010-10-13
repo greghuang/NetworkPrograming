@@ -52,15 +52,12 @@ public class RequestProcessor implements Runnable {
 				if (key.isValid()) {
 					key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
 					
-					//System.out.println("Handle a request by processor...");
-					
 					SocketChannel sc = (SocketChannel)key.channel();
 					
 					buffer.clear();
 					
 					int count = sc.read(buffer);
-					System.out.println("Count:"+count);
-					
+										
 					if (count > 0) {
 						if (key.attachment() == null) {
 							System.out.println("Parsing data...");
@@ -106,8 +103,7 @@ public class RequestProcessor implements Runnable {
     	
     	if (size>100) {
     		// From Client
-			key.attach(TYPE_CLIENT);
-			System.out.println("size:" + size);
+			key.attach(TYPE_CLIENT);			
 			return;
     	}
     	
@@ -200,13 +196,7 @@ public class RequestProcessor implements Runnable {
 
 		ClientNodes.Builder builder = ClientNodes.newBuilder();
 		builder.mergeFrom(protobuf);
-		clients = builder.build();
-		
-//		System.out.println(String.format("Receive a new block(Seq:%d Size:%d Digest:%s EOF:%s)", 
-//				block.getSeqNum(), block.getSize(), block.getDigest(), block.getEof()));
-
-		System.out.println("Get "+ clients.getNodesCount() +" client node from server");
-		
+		clients = builder.build();		
 		return clients;
 	}
     
@@ -229,7 +219,7 @@ public class RequestProcessor implements Runnable {
     			while (buffer.hasRemaining()) {
     				sc.write(buffer);
     			}
-    			System.out.println("Send mesaage "+message.getSerializedSize()+ " bytes to client "+ sc.socket().getInetAddress().getHostAddress());
+    			System.out.println("Send mesaage "+message.getSerializedSize()+ " bytes to relay "+ sc.socket().getInetAddress().getHostAddress());
     		}    		
     	}
     	buffer.clear();
@@ -247,7 +237,6 @@ public class RequestProcessor implements Runnable {
 		builder.mergeFrom(protobuf);
 		Relay message = builder.build();
 		String s = new String(message.getMessage().toByteArray());
-		System.out.println("Message:"+s);
 		
 		if (s.equals("Relay handshaking")) {
 			owner.removeSocketChannel(source);
@@ -266,7 +255,7 @@ public class RequestProcessor implements Runnable {
     		while (buffer.hasRemaining()) {
     			sc.write(buffer);
     		}
-    		System.out.println("Send mesaage "+message.getSerializedSize()+ " bytes to client "+ sc.socket().getInetAddress().getHostAddress());    		
+    		System.out.println(String.format("Send %s (%n bytes) to console %s", s, message.getSerializedSize(), sc.socket().getInetAddress().getHostAddress()));    		
     	}
     	buffer.clear();
     }
@@ -275,7 +264,7 @@ public class RequestProcessor implements Runnable {
 		int size = buffer.getInt();
 		byte[] array = new byte[size];
 		buffer.get(array);		
-		System.out.println("Protobuf size:" + size+ " "+array.length);
+		//System.out.println("Protobuf size:" + size+ " "+array.length);
 		buffer.clear();
 		return array;
     }
