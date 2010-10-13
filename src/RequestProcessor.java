@@ -1,3 +1,4 @@
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -5,9 +6,25 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import com.google.protobuf.ByteString;
+
+import protocol.Protocol;
+import protocol.Protocol.ClientNodes;
+import protocol.Protocol.Node;
+import protocol.Protocol.Relay;
+
 public class RequestProcessor implements Runnable {
     private static List<SelectionKey> pool = new LinkedList<SelectionKey>();
     private ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+    private static final Integer TYPE_RELAY = new Integer(1);
+    private static final Integer TYPE_CLIENT = new Integer(2);
+    private static final Integer TYPE_SERVER = new Integer(3);
+    
+    private TClient owner = null;
+    
+    public RequestProcessor (TClient owner) {
+    	this.owner = owner; 
+    }
             
     public static void processRequest(SelectionKey key) {
         synchronized(pool) {
@@ -34,27 +51,42 @@ public class RequestProcessor implements Runnable {
             try {
 				if (key.isValid()) {
 					key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-
-					System.out.print("Handle a request...");
-
-					SocketChannel sc = (SocketChannel) key.channel();
 					
-					int count = 0;
-
+					//System.out.println("Handle a request by processor...");
+					
+					SocketChannel sc = (SocketChannel)key.channel();
+					
 					buffer.clear();
-
-					while ((count = sc.read(buffer)) > 0) {
-						buffer.flip();
-						writeDataToChannel(buffer, sc);
+					
+					int count = sc.read(buffer);
+					System.out.println("Count:"+count);
+					
+					if (count > 0) {
+						if (key.attachment() == null) {
+							System.out.println("Parsing data...");
+							parseData(buffer, key);
+						}
+						
+						buffer.flip();						
+						if (key.attachment() == TYPE_CLIENT) {
+							System.out.println("The key is from console");
+							writeDataToRelay(sc);
+						} else if (key.attachment() == TYPE_SERVER) {
+							System.out.println("The key is from server");
+							readDataFromServer(key);
+						} else if (key.attachment() == TYPE_RELAY) {							
+							writeDataToConsole(sc);
+							System.out.println("The key is from relay");							
+						}
 						buffer.clear();
 					}
-
-					// EOF
-					if (count < 0) {
-						System.out.println("Socket close");
-						sc.close();
+					else {
+						// EOF
+						if (count < 0) {
+							System.out.println("Socket close");
+							sc.close();
+						}
 					}
-
 					key.interestOps(key.interestOps() | SelectionKey.OP_READ);
 					key.selector().wakeup();
 				}
@@ -65,16 +97,187 @@ public class RequestProcessor implements Runnable {
         } // end while
     }
     
-    private void writeDataToChannel(ByteBuffer buf, SocketChannel host) throws Exception{
-    	Iterator<SocketChannel> iter = TClient.clientList.iterator();
+    private void parseData(ByteBuffer buf, SelectionKey key) 
+    {
+    	key.attach(null);
     	
-    	while (iter.hasNext()) {
-    		SocketChannel sc = iter.next();    		
-    		while (buf.hasRemaining()) {
-    			sc.write(buf);
+    	buf.flip();
+    	int size = buf.getInt();
+    	
+    	if (size>100) {
+    		// From Client
+			key.attach(TYPE_CLIENT);
+			System.out.println("size:" + size);
+			return;
+    	}
+    	
+		byte[] array = new byte[size];
+		buf.get(array);
+	
+		// From server
+		try {
+			System.out.println("Parsing ClientNodes...");
+			ClientNodes.Builder builder = ClientNodes.newBuilder();
+			builder.mergeFrom(array);
+			builder.build();
+			key.attach(TYPE_SERVER);
+			return;
+		} catch (Exception e) {
+			// Do nothing
+		}
+		
+		// From relay
+		try {
+			System.out.println("Parsing Relay...");
+			Protocol.Relay.Builder builder = Protocol.Relay.newBuilder();
+			builder.mergeFrom(array);
+			builder.build();
+			key.attach(TYPE_RELAY);
+			return;
+		} catch (Exception e) {
+		}				
+    }
+    
+    private void readDataFromServer(SelectionKey key) throws Exception {
+    	SocketChannel sc = (SocketChannel) key.channel();
+    	ClientNodes clients = getAllClients(sc);
+    	
+    	if (clients != null) {
+    		for (Protocol.Node node : clients.getNodesList()) {
+    			if (node.getConnectivity() == Node.NodeConnectivity.CONNECTED) {
+    				connectClient(node.getIp(), node.getPort());
+    			} else if ( node.getConnectivity() == Node.NodeConnectivity.DISCONNECTED ) { 
+    				// Todo
+    			}
     		}
-    		System.out.println("Send mesaage to client "+ sc.socket().getInetAddress().getHostAddress());
-    	}    	
+    	}
+    }
+    
+    private void connectClient(String ip, int port) {
+    	try {    		
+    		if (owner.isClientExist(ip, port)) return;
+    		
+    		InetSocketAddress address = new InetSocketAddress(ip, port);
+    		SocketChannel sc = SocketChannel.open();
+        	sc.connect(address);
+        	
+        	// Wait the connection ready
+        	while (!sc.finishConnect()) {
+        		Thread.sleep(50);
+        	}
+        	
+        	owner.addRelayChannel(sc);
+        	
+        	// Send a notify to other relay
+        	Relay.Builder builder = Relay.newBuilder();
+        	builder.setFrom("127.0.0.1");
+        	builder.setTo("10.1.1.2");
+        	ByteString bs = ByteString.copyFrom("Relay handshaking".getBytes());
+        	builder.setMessage(bs);
+        	Relay message = builder.build();
+        	
+        	buffer.clear();
+        	buffer.putInt(message.getSerializedSize()).put(message.toByteArray());
+        	buffer.flip();
+        	sc.write(buffer);
+                        
+            //System.out.println("Connect to a client on " + address + " with " + port + " port");
+    	}
+    	catch (Exception e) {
+    		e.printStackTrace();
+    	}
+    }
+    
+    private ClientNodes getAllClients(SocketChannel sc) throws Exception {
+		
+		ClientNodes clients = null;
+		byte[] protobuf = readProtobufData(sc);
+			
+		if (protobuf == null) {
+			System.out.println("buf null");
+			return null;
+		}
+
+		ClientNodes.Builder builder = ClientNodes.newBuilder();
+		builder.mergeFrom(protobuf);
+		clients = builder.build();
+		
+//		System.out.println(String.format("Receive a new block(Seq:%d Size:%d Digest:%s EOF:%s)", 
+//				block.getSeqNum(), block.getSize(), block.getDigest(), block.getEof()));
+
+		System.out.println("Get "+ clients.getNodesCount() +" client node from server");
+		
+		return clients;
+	}
+    
+    private void writeDataToRelay(SocketChannel source) throws Exception{ 	
+    	Relay.Builder builder = Relay.newBuilder();
+    	builder.setFrom(source.socket().getInetAddress().getHostAddress());
+    	builder.setTo("10.1.1.2");
+    	ByteString bs = ByteString.copyFrom(buffer);
+    	builder.setMessage(bs);
+    	Relay message = builder.build();
+    	
+    	buffer.clear();
+    	buffer.putInt(message.getSerializedSize()).put(message.toByteArray());
+    	
+    	Iterator<SocketChannel> iter = TClient.relayList.iterator();
+    	while (iter.hasNext()) {
+    		SocketChannel sc = iter.next();
+    		if (sc != source) {
+    			buffer.flip();
+    			while (buffer.hasRemaining()) {
+    				sc.write(buffer);
+    			}
+    			System.out.println("Send mesaage "+message.getSerializedSize()+ " bytes to client "+ sc.socket().getInetAddress().getHostAddress());
+    		}    		
+    	}
+    	buffer.clear();
+    }
+    
+    private void writeDataToConsole(SocketChannel source) throws Exception{
+    	byte[] protobuf = readProtobufData(source);
+    	
+    	if (protobuf == null) {
+			System.out.println("buf null");
+			return;
+		}
+    	
+    	Relay.Builder builder = Relay.newBuilder();
+		builder.mergeFrom(protobuf);
+		Relay message = builder.build();
+		String s = new String(message.getMessage().toByteArray());
+		System.out.println("Message:"+s);
+		
+		if (s.equals("Relay handshaking")) {
+			owner.removeSocketChannel(source);
+			owner.addRelayChannel(source);
+			System.out.println("it is handshaking, just return");
+			return;
+		}
+		
+		buffer.clear();
+		buffer.put(message.getMessage().toByteArray());
+		
+		Iterator<SocketChannel> iter = TClient.scList.iterator();
+    	while (iter.hasNext()) {
+    		SocketChannel sc = iter.next();
+    		buffer.flip();
+    		while (buffer.hasRemaining()) {
+    			sc.write(buffer);
+    		}
+    		System.out.println("Send mesaage "+message.getSerializedSize()+ " bytes to client "+ sc.socket().getInetAddress().getHostAddress());    		
+    	}
+    	buffer.clear();
+    }
+    
+    private byte[] readProtobufData(SocketChannel sc) throws Exception{
+		int size = buffer.getInt();
+		byte[] array = new byte[size];
+		buffer.get(array);		
+		System.out.println("Protobuf size:" + size+ " "+array.length);
+		buffer.clear();
+		return array;
     }
     
 //    private void writeResponse(boolean success, Packet.Ack.AckType type, BufferedOutputStream conOut) throws IOException {

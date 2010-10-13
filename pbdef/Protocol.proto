@@ -14,3 +14,9 @@ message Node {
 message ClientNodes {
 	repeated Node nodes = 1;
 }
+
+message Relay {
+	required string from = 1;
+	required string to = 2;
+	required bytes message = 3;
+}

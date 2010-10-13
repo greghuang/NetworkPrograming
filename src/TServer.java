@@ -100,10 +100,10 @@ public class TServer {
         						int client_size = clientNodes_instance.getSerializedSize();
         						ByteBuffer buf = ByteBuffer.allocateDirect(1024);
         						buf.clear();
-        			        	buf.putInt(client_size ).put(clientNodes_instance.toByteArray());
-        			        	//cltBuf.put(node.toByteArray());
+        			        	buf.putInt(client_size ).put(clientNodes_instance.toByteArray());        			      
         			        	buf.flip();
-        			        	client_channel.write(buf);          						
+        			        	client_channel.write(buf);
+        			        	System.out.println("send a protobuf ok");
         					}    	
     					}
 				
