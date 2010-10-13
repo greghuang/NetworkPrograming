@@ -92,11 +92,10 @@ public class TServer {
     						sc.close();
     					}
     					else{
-        					
+    						ClientNodes clientNodes_instance = clientNodes.build();
         					for( SocketChannel client_channel : clientPool){
         						if( client_channel == sc )
-        							continue;
-        						ClientNodes clientNodes_instance = clientNodes.build();
+        							continue;        						
         						int client_size = clientNodes_instance.getSerializedSize();
         						ByteBuffer buf = ByteBuffer.allocateDirect(1024);
         						buf.clear();

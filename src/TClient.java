@@ -139,7 +139,8 @@ public class TClient {
     				SelectionKey key = (SelectionKey) it.next();
 
     				// Is it a new connection?
-    				if ( key.isAcceptable() ) {					
+    				if ( key.isAcceptable() ) {
+    					System.out.println("Accept a new connection");
     					ServerSocketChannel svrSocketChannel = (ServerSocketChannel) key.channel();
     					SocketChannel sc = svrSocketChannel.accept();
     					addSocketChannel(sc);					

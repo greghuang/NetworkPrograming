@@ -152,9 +152,11 @@ public class RequestProcessor implements Runnable {
     private void connectClient(String ip, int port) {
     	try {    		
     		if (owner.isClientExist(ip, port)) return;
+    		System.out.println("Try connect to a client on " + ip + " with " + port + " port");
     		
     		InetSocketAddress address = new InetSocketAddress(ip, port);
     		SocketChannel sc = SocketChannel.open();
+    		sc.configureBlocking(false);
         	sc.connect(address);
         	
         	// Wait the connection ready
